@@ -11,10 +11,7 @@ class Dncnn(nn.Module):
         self.model = nn.Sequential(*model)
 
     def forward(self, input):
-        # input_new=input.permute(0,4,1,2,3)  #[64,1,11,40,40]
-        # return self.model(input_new)
         output=self.model(input)
-        # output=output.permute(0, 2, 3, 4, 1)
         # return input-output  # if there are residual
         return output
 
