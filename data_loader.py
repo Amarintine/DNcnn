@@ -5,7 +5,7 @@ from PIL import Image
 import numpy as np
 import glob
 import os
-scales = [0.5]  #1,0.7,0.9,
+scales = [0.5]  #1,0.9,0.8,0.7
 STRIDE = 10
 PAT_SIZE = 40
 BAT_SIZE = 64
@@ -116,7 +116,7 @@ class Data_loader():
         count = 0
         for input_3D in input_3Ds:
             input_3D = np.reshape(input_3D, (1,input_3D.shape[0], input_3D.shape[1], input_3D.shape[2]))
-            for x in range(0, input_3D.shape[1] - PAT_SIZE, STRIDE):
+            for x in range(0, input_3D.shape[2] - PAT_SIZE, STRIDE):
                 for y in range(0, input_3D.shape[2] - PAT_SIZE, STRIDE):
                     inputs[count, :, :, :, :] = input_3D[:,  :,x:x + PAT_SIZE, y:y + PAT_SIZE]
                     count += 1
