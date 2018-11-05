@@ -41,7 +41,7 @@ def load_3D_images(filelist):
       im = Image.open(filelist[i])
       im_array = np.array(im,dtype='uint16')
       data[i:i+1,:,:] = im_array
-    data_reshaped = np.reshape(data,(1,len(filelist),1024,1024,1))
+    data_reshaped = np.reshape(data,(1,1,len(filelist),2048,2048)) # test data to correspoding to the type of input channel
     return data_reshaped
 
 def save_images(filepath,ground_truth, noisy_image=None, clean_image=None):#shape of ground_truth=(1,11,1024,1024,1)
