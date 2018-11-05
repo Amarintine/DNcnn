@@ -69,10 +69,10 @@ class denoiser(object):
             if not clean_image.any():
                 clean_image = groundtruth
             ground_truth = np.reshape(groundtruth, (
-            groundtruth.shape[1], groundtruth.shape[2], groundtruth.shape[3]))  # (11,1024,1024)
-            noisy_image = np.reshape(noisyimage, (noisyimage.shape[1], noisyimage.shape[2], noisyimage.shape[3]))
+            groundtruth.shape[2], groundtruth.shape[3], groundtruth.shape[4]))  # (11,1024,1024)
+            noisy_image = np.reshape(noisyimage, (noisyimage.shape[2], noisyimage.shape[3], noisyimage.shape[4]))
             output_clean_image = np.reshape(outputimage,
-                                            (outputimage.shape[1], outputimage.shape[2], outputimage.shape[3]))
+                                            (outputimage.shape[2], outputimage.shape[3], outputimage.shape[4]))
 
             ground_truth_layers = [None] * ground_truth.shape[0]
             noisy_image_layers = [None] * ground_truth.shape[0]
@@ -91,7 +91,7 @@ class denoiser(object):
     def test(self,arg):
         print("start testing....")
         self.test_data1 = self.test_data1.astype(np.float32) / 65535.0
-        self.test_data2 = self.test_data2.astype(np.float32) / 65535.0 #[1,11,1024,1024,1]
+        self.test_data2 = self.test_data2.astype(np.float32) / 65535.0 #[1,1,7,1024,1024]
         clean_image = Variable(torch.from_numpy(self.test_data1)).to(self.device)
         noisy_image = Variable(torch.from_numpy(self.test_data2)).to(self.device)
         self.load_networks(arg,'latest')
@@ -107,9 +107,9 @@ class denoiser(object):
             outputimage = np.clip(65535 * output_clean_image, 0, 65535).astype('uint16')
             if not clean_image.any():
                 clean_image = groundtruth
-            ground_truth = np.reshape(groundtruth, (groundtruth.shape[1], groundtruth.shape[2], groundtruth.shape[3]))  # (11,1024,1024)
-            noisy_image = np.reshape(noisyimage, (noisyimage.shape[1], noisyimage.shape[2], noisyimage.shape[3]))
-            output_clean_image = np.reshape(outputimage, (outputimage.shape[1], outputimage.shape[2], outputimage.shape[3]))
+            ground_truth = np.reshape(groundtruth, (groundtruth.shape[2], groundtruth.shape[3], groundtruth.shape[4]))  # (7,1024,1024)
+            noisy_image = np.reshape(noisyimage, (noisyimage.shape[2], noisyimage.shape[3], noisyimage.shape[4]))
+            output_clean_image = np.reshape(outputimage, (outputimage.shape[2], outputimage.shape[3], outputimage.shape[4]))
 
             ground_truth_layers = [None] * ground_truth.shape[0]
             noisy_image_layers = [None] * ground_truth.shape[0]
