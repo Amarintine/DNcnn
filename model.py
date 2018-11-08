@@ -51,43 +51,6 @@ class denoiser(object):
         self.loss_all.backward()
         self.optimizer.step()
 
-    def evaluate(self, epoch, arg):
-        # assert test_data value range is 0-255
-        print("[*] Evaluating...")
-        self.eval_data1 = self.eval_data1.astype(np.float32) / 65535.0
-        self.eval_data2 = self.eval_data2.astype(np.float32) / 65535.0
-        clean_image = Variable(torch.from_numpy(self.eval_data1)).to(self.device)
-        noisy_image = Variable(torch.from_numpy(self.eval_data2)).to(self.device)
-        with torch.no_grad():
-            output_clean_image = self.net(noisy_image)
-            clean_image = clean_image.cpu().numpy()  # clean image is label
-            noisy_image = noisy_image.cpu().numpy()
-            output_clean_image = output_clean_image.cpu().numpy()
-            groundtruth = np.clip(65535 * self.eval_data1, 0, 65535).astype('uint16')
-            noisyimage = np.clip(65535 * noisy_image, 0, 65535).astype('uint16')
-            outputimage = np.clip(65535 * output_clean_image, 0, 65535).astype('uint16')
-            if not clean_image.any():
-                clean_image = groundtruth
-            ground_truth = np.reshape(groundtruth, (
-            groundtruth.shape[2], groundtruth.shape[3], groundtruth.shape[4]))  # (11,1024,1024)
-            noisy_image = np.reshape(noisyimage, (noisyimage.shape[2], noisyimage.shape[3], noisyimage.shape[4]))
-            output_clean_image = np.reshape(outputimage,
-                                            (outputimage.shape[2], outputimage.shape[3], outputimage.shape[4]))
-
-            ground_truth_layers = [None] * ground_truth.shape[0]
-            noisy_image_layers = [None] * ground_truth.shape[0]
-            output_clean_image_layers = [None] * ground_truth.shape[0]
-            cat_image_layers = [None] * ground_truth.shape[0]
-
-            for i in range(ground_truth.shape[0]):
-                ground_truth_layers[i] = np.reshape(ground_truth[i:i + 1, :, :], (ground_truth.shape[1], ground_truth.shape[2]))
-                noisy_image_layers[i] = np.reshape(noisy_image[i:i + 1, :, :], (noisy_image.shape[1], noisy_image.shape[2]))
-                output_clean_image_layers[i] = np.reshape(output_clean_image[i:i + 1, :, :], (output_clean_image.shape[1], output_clean_image.shape[2]))
-                mse = ((ground_truth_layers[i].astype(np.float) - output_clean_image_layers[i].astype(np.float)) ** 2).mean()
-                psnr = 10 * np.log10(65535 ** 2 / mse)
-                cat_image_layers[i] = np.concatenate([ground_truth_layers[i], noisy_image_layers[i], output_clean_image_layers[i]], axis=1)
-                cv2.imwrite(os.path.join(arg.sample_dir, 'eval_layer','%depoch_layer%d_psnr%f.tif' % ( epoch,i,psnr)), cat_image_layers[i])
-
     def test(self,arg):
         print("start testing....")
         self.test_data1 = self.test_data1.astype(np.float32) / 65535.0
@@ -98,7 +61,6 @@ class denoiser(object):
         with torch.no_grad():
 
             output_clean_image = self.net(noisy_image)
-            # output_clean_image = noisy_image - output  # that is desired
             clean_image = clean_image.cpu().numpy()   # clean image is label
             noisy_image = noisy_image.cpu().numpy()
             output_clean_image = output_clean_image.cpu().numpy()
@@ -135,8 +97,6 @@ class denoiser(object):
                 # psnr2 = 10 * np.log10(65535 ** 2 / mse)
                 # 
                 # print('psnr for layer%d is %f' % (i, psnr2))
-
-
 
     def save_networks(self,args,epoch):
 
