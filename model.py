@@ -1,6 +1,6 @@
 # encoding: utf-8
 import torch
-from network import Dncnn
+from network import Dncnn,UnetGenerator_3d
 from utils import set_requires_grad
 import numpy as np
 import cv2
@@ -13,7 +13,8 @@ class denoiser(object):
         # build model
         self.batch_size=batch_size
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.net = Dncnn().to(self.device)
+        #self.net = UnetGenerator_3d().to(self.device)
+        self.net=UnetGenerator_3d(in_dim = 3, out_dim = 3, num_filter = 16).to(self.device)
         self.loss = torch.nn.MSELoss(size_average=False)
         self.adjust_learning_rate(args)
         self.optimizer = torch.optim.Adam(self.net.parameters(),lr=args.lr, betas=(args.beta1, 0.999))
@@ -23,19 +24,20 @@ class denoiser(object):
         lr[3:] = lr[0] / 10.0
 
     def set_input(self,input):
-        self.noisy_images_all =Variable(input['noisy_images']).to(self.device)
-        self.clean_images_all =Variable(input['clean_images']).to(self.device)
+        self.widefield_images_all =Variable(input['widefield_images']).to(self.device)
+        self.confocal_images_all =Variable(input['confocal_images']).to(self.device)
 
 
     def set_test_input(self,input):
-        self.test_data_labels = input['test_data1']
+        self.data_ = input['test_data1']
+        self.test_data_labels = self.data_
         self.test_data_input = input['test_data2']
 
     def forward(self):
-        self.desired = self.net(self.noisy_images_all)
+        self.desired = self.net(self.widefield_images_all)
 
     def loss_calculate(self):
-        self.loss_all = self.loss(self.desired, self.clean_images_all)
+        self.loss_all = self.loss(self.desired, self.confocal_images_all)
 
     def get_loss(self):
         return self.loss_all
@@ -53,91 +55,90 @@ class denoiser(object):
         print("[*] Evaluating...")
         self.eval_data1 = self.eval_data1.astype(np.float32) / 255.0
         self.eval_data2 = self.eval_data2.astype(np.float32) / 255.0
-        clean_image = Variable(torch.from_numpy(self.eval_data1)).to(self.device)
-        noisy_image = Variable(torch.from_numpy(self.eval_data2)).to(self.device)
+        confocal_image = Variable(torch.from_numpy(self.eval_data1)).to(self.device)
+        widefield_image = Variable(torch.from_numpy(self.eval_data2)).to(self.device)
         with torch.no_grad():
-            output_clean_image = self.net(noisy_image)
+            output_confocal_image = self.net(widefield_image)
             # output = output.permute(0,2,3,4,1)
-            # output_clean_image = noisy_image- output  # that is desired
-            clean_image = clean_image.cpu().numpy()
-            noisy_image = noisy_image.cpu().numpy()
-            output_clean_image = output_clean_image.cpu().numpy()
+            # output_confocal_image = widefield_image- output  # that is desired
+            confocal_image = confocal_image.cpu().numpy()
+            widefield_image = widefield_image.cpu().numpy()
+            output_confocal_image = output_confocal_image.cpu().numpy()
             groundtruth = np.clip(255 * self.eval_data1, 0, 255).astype('uint16')  # 查看数据类型
-            noisyimage = np.clip(255 * noisy_image, 0, 255).astype('uint16')
-            outputimage = np.clip(255 * output_clean_image, 0, 255).astype('uint16')
+            widefieldimage = np.clip(255 * widefield_image, 0, 255).astype('uint16')
+            outputimage = np.clip(255 * output_confocal_image, 0, 255).astype('uint16')
             # 判断x对象是否为空对象，如果都为空、0、false，则返回false，如果不都为空、0、false，则返回true
-            if not clean_image.any():
-                clean_image = groundtruth
+            if not confocal_image.any():
+                confocal_image = groundtruth
             ground_truth = np.reshape(groundtruth, (
             groundtruth.shape[2], groundtruth.shape[3], groundtruth.shape[4], 3))  # (16,1024,1024,3)
-            noisy_image = np.reshape(noisyimage, (noisyimage.shape[2], noisyimage.shape[3], noisyimage.shape[4], 3))
-            output_clean_image = np.reshape(outputimage,
+            widefield_image = np.reshape(widefieldimage, (widefieldimage.shape[2], widefieldimage.shape[3], widefieldimage.shape[4], 3))
+            output_confocal_image = np.reshape(outputimage,
                                             (outputimage.shape[2], outputimage.shape[3], outputimage.shape[4], 3))
             ground_truth_layers = [None] * ground_truth.shape[0]
-            noisy_image_layers = [None] * ground_truth.shape[0]
-            output_clean_image_layers = [None] * ground_truth.shape[0]
+            widefield_image_layers = [None] * ground_truth.shape[0]
+            output_confocal_image_layers = [None] * ground_truth.shape[0]
             cat_image_layers = [None] * ground_truth.shape[0]
             for i in range(ground_truth.shape[0]):
                 ground_truth_layers[i] = np.reshape(ground_truth[i:i + 1, :, :,:],
                                                     (ground_truth.shape[1], ground_truth.shape[2],3))
-                noisy_image_layers[i] = np.reshape(noisy_image[i:i + 1, :, :,:], (noisy_image.shape[1], noisy_image.shape[2],3))
-                output_clean_image_layers[i] = np.reshape(output_clean_image[i:i + 1, :, :,:], (output_clean_image.shape[1], output_clean_image.shape[2],3))
-                cat_image_layers[i] = np.concatenate([ground_truth_layers[i], noisy_image_layers[i], output_clean_image_layers[i]],
+                widefield_image_layers[i] = np.reshape(widefield_image[i:i + 1, :, :,:], (widefield_image.shape[1], widefield_image.shape[2],3))
+                output_confocal_image_layers[i] = np.reshape(output_confocal_image[i:i + 1, :, :,:], (output_confocal_image.shape[1], output_confocal_image.shape[2],3))
+                cat_image_layers[i] = np.concatenate([ground_truth_layers[i], widefield_image_layers[i], output_confocal_image_layers[i]],
                                                      axis=1)
                 cv2.imwrite(os.path.join(arg.sample_dir, 'show_layer','%d.tif') % (i), cat_image_layers[i])
                 cv2.imwrite(os.path.join(arg.sample_dir, 'label_layer','%d.tif') % (i), ground_truth_layers[i])
-                cv2.imwrite(os.path.join(arg.sample_dir, 'input_layer','%d.tif') % (i), noisy_image_layers[i])
-                cv2.imwrite(os.path.join(arg.sample_dir, 'denoised_layer','%d.tif') % (i), output_clean_image_layers[i])
+                cv2.imwrite(os.path.join(arg.sample_dir, 'input_layer','%d.tif') % (i), widefield_image_layers[i])
+                cv2.imwrite(os.path.join(arg.sample_dir, 'denoised_layer','%d.tif') % (i), output_confocal_image_layers[i])
                 cv2.imwrite(os.path.join(arg.sample_dir, 'denoised_labels_layer','%d.tif') % (i),
-                            (output_clean_image_layers[i].astype('int16') - ground_truth_layers[i].astype('int16')))
+                            (output_confocal_image_layers[i].astype('int16') - ground_truth_layers[i].astype('int16')))
 
     def test(self,arg):
         print("start testing....")
-        self.test_data_labels = self.test_data_labels.astype(np.float32) / 255.0 #[1,1,7,2048,2048]
-        self.test_data_input = self.test_data_input.astype(np.float32) / 255.0
 
-        clean_image = Variable(torch.from_numpy(self.test_data_labels)).to(self.device)
-        noisy_image = Variable(torch.from_numpy(self.test_data_input)).to(self.device)  # 1,3,16,1024,1024
-        self.load_networks(arg,'1')
+        self.test_data_input = self.test_data_input.astype(np.float32) / 255.0   #[1,3,16,1024,1024]
+
+
+        widefield_image = Variable(torch.from_numpy(self.test_data_input)).to(self.device)  # 1,3,16,1024,1024
+        self.load_networks(arg,'20')
         with torch.no_grad():
-            output_clean_image = self.net(noisy_image)
+            output_confocal_image = self.net(widefield_image)
             # output = output.permute(0, 2, 3, 4, 1)
-            # output_clean_image = noisy_image - output  # that is desired
-            clean_image = clean_image.cpu().numpy()   # clean image is label
-            noisy_image = noisy_image.cpu().numpy()
-            output_clean_image = output_clean_image.cpu().numpy()
-            groundtruth = np.clip(255 * self.test_data_labels, 0, 255).astype('uint16')
-            noisyimage = np.clip(255 * noisy_image, 0, 255).astype('uint16')
-            outputimage = np.clip(255 * output_clean_image, 0, 255).astype('uint16')
+            # output_confocal_image = widefield_image - output  # that is desired
 
-            if not clean_image.any():
-                clean_image = groundtruth
+            widefield_image = widefield_image.cpu().numpy()
+            output_confocal_image = output_confocal_image.cpu().numpy()
+            groundtruth = self.test_data_labels.astype('uint8')
+            widefieldimage = np.clip(255 * widefield_image, 0, 255).astype('uint8')
+            outputimage = np.clip(255 * output_confocal_image, 0, 255).astype('uint8')
+
+
             ground_truth = np.reshape(groundtruth, (groundtruth.shape[2], groundtruth.shape[3], groundtruth.shape[4],3))  # (16,1024,1024,3)
-            noisy_image = np.reshape(noisyimage, (noisyimage.shape[2], noisyimage.shape[3], noisyimage.shape[4],3))
-            output_clean_image = np.reshape(outputimage, (outputimage.shape[2], outputimage.shape[3], outputimage.shape[4],3))
+            widefield_image = np.reshape(widefieldimage, (widefieldimage.shape[2], widefieldimage.shape[3], widefieldimage.shape[4],3))
+            output_confocal_image = np.reshape(outputimage, (outputimage.shape[2], outputimage.shape[3], outputimage.shape[4],3))
 
             ground_truth_layers = [None] * ground_truth.shape[0]
-            noisy_image_layers = [None] * ground_truth.shape[0]
-            output_clean_image_layers = [None] * ground_truth.shape[0]
+            widefield_image_layers = [None] * ground_truth.shape[0]
+            output_confocal_image_layers = [None] * ground_truth.shape[0]
             cat_image_layers = [None] * ground_truth.shape[0]
 
             for i in range(ground_truth.shape[0]):
                 ground_truth_layers[i] = np.reshape(ground_truth[i:i + 1, :, :,:],
                                                     (ground_truth.shape[1], ground_truth.shape[2],3))
-                noisy_image_layers[i] = np.reshape(noisy_image[i:i + 1, :, :,:], (noisy_image.shape[1], noisy_image.shape[2],3))
-                output_clean_image_layers[i] = np.reshape(output_clean_image[i:i + 1, :, :,:], (output_clean_image.shape[1], output_clean_image.shape[2],3))
-                cat_image_layers[i] = np.concatenate([ground_truth_layers[i], noisy_image_layers[i], output_clean_image_layers[i]],
+                widefield_image_layers[i] = np.reshape(widefield_image[i:i + 1, :, :,:], (widefield_image.shape[1], widefield_image.shape[2],3))
+                output_confocal_image_layers[i] = np.reshape(output_confocal_image[i:i + 1, :, :,:], (output_confocal_image.shape[1], output_confocal_image.shape[2],3))
+                cat_image_layers[i] = np.concatenate([ground_truth_layers[i], widefield_image_layers[i], output_confocal_image_layers[i]],
                                                      axis=1)
                 cv2.imwrite(os.path.join(arg.sample_dir, 'show_layer','%d.tif') % (i), cat_image_layers[i])
                 cv2.imwrite(os.path.join(arg.sample_dir, 'label_layer','%d.tif') % (i), ground_truth_layers[i])
-                cv2.imwrite(os.path.join(arg.sample_dir, 'input_layer','%d.tif') % (i), noisy_image_layers[i])
-                cv2.imwrite(os.path.join(arg.sample_dir, 'denoised_layer','%d.tif') % (i), output_clean_image_layers[i])
+                cv2.imwrite(os.path.join(arg.sample_dir, 'input_layer','%d.tif') % (i), widefield_image_layers[i])
+                cv2.imwrite(os.path.join(arg.sample_dir, 'denoised_layer','%d.tif') % (i), output_confocal_image_layers[i])
                 cv2.imwrite(os.path.join(arg.sample_dir, 'denoised_labels_layer','%d.tif') % (i),
-                            (output_clean_image_layers[i].astype('int16') - ground_truth_layers[i].astype('int16')))
-                mse = ((ground_truth_layers[i].astype(np.float) - output_clean_image_layers[i].astype(np.float)) ** 2).mean()
+                            (output_confocal_image_layers[i].astype('int16') - ground_truth_layers[i].astype('int16')))
+                mse = ((ground_truth_layers[i].astype(np.float) - output_confocal_image_layers[i].astype(np.float)) ** 2).mean()
                 # psnr = 10 * np.log10(65535 ** 2 / mse)
                 # print('psnr for layer%d is %f' % (i, psnr))
-                mse = ((noisy_image_layers[i].astype(np.float) - output_clean_image_layers[i].astype(np.float)) ** 2).mean()
+                mse = ((widefield_image_layers[i].astype(np.float) - output_confocal_image_layers[i].astype(np.float)) ** 2).mean()
                 # psnr2 = 10 * np.log10(65535 ** 2 / mse)
                 #
                 # print('psnr for layer%d is %f' % (i, psnr2))

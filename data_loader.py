@@ -15,6 +15,7 @@ class Data_loader():
 
     def load_data(self,args):
 
+        print('preparing patches..')
         files1, files2 = sorted(os.listdir('.//datasets//train/inputs')), sorted(os.listdir('./datasets/train/labels'))
         data = []
         for filepath1 in files1:
@@ -62,26 +63,27 @@ class Data_loader():
         # self.data9 = torch.from_numpy(self.data9)
         # self.data10= torch.from_numpy(self.data10)
 
-        # self.clean_data=torch.cat((self.data6, self.data7, self.data8,self.data9, self.data10), 0)
-        # self.noisy_data=torch.cat((self.data1, self.data2, self.data3,self.data4, self.data5), 0)
-        self.clean_data = self.data2
-        self.noisy_data = self.data1
+        # self.confocal_data=torch.cat((self.data6, self.data7, self.data8,self.data9, self.data10), 0)
+        # self.widefield_data=torch.cat((self.data1, self.data2, self.data3,self.data4, self.data5), 0)
+        self.confocal_data = self.data2
+        self.widefield_data = self.data1
 
-        numBatch = int(self.clean_data.shape[0] / args.batch_size)
+        numBatch = int(self.confocal_data.shape[0] / args.batch_size)
         print(numBatch)
 
         return numBatch
 
     def load_test_data(self,args):
-        self.test_data1 = load_3D_images(glob.glob('./datasets/{}/*.tif'.format(args.test_labels)))
         self.test_data2 = load_3D_images(glob.glob('./datasets/{}/*.tif'.format(args.test_input)))
+        self.test_data1 = load_3D_images(glob.glob('./datasets/{}/*.tif'.format(args.test_labels)))
+
 
     def set_data(self,batch_id,batch_size):
 
             # [64,1,30,40,40,]
-        clean_images = self.clean_data[batch_id * batch_size:(batch_id + 1) * batch_size, :, :, :, :]
-        noisy_images = self.noisy_data[batch_id * batch_size:(batch_id + 1) * batch_size, :, :, :, :]  #打乱
-        return {'clean_images': clean_images, 'noisy_images': noisy_images}
+        confocal_images = self.confocal_data[batch_id * batch_size:(batch_id + 1) * batch_size, :, :, :, :]
+        widefield_images = self.widefield_data[batch_id * batch_size:(batch_id + 1) * batch_size, :, :, :, :]  #打乱
+        return {'confocal_images': confocal_images, 'widefield_images': widefield_images}
 
     def set_test_data(self):
         return {
