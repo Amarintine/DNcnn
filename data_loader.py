@@ -135,8 +135,9 @@ class Data_loader():
             # generate_patches
             for i in range(0, new_h - PAT_SIZE, STRIDE):
                 for j in range(0, new_w - PAT_SIZE, STRIDE):
+                    
+                    inputs_patches[count：count + 1, :, :, :, :] = inputs[s][:,i:i + PAT_SIZE,j:j + PAT_SIZE, :]
                     count += 1
-                    inputs_patches[count, :, :, :, :] = inputs[s][:,i:i + PAT_SIZE,j:j + PAT_SIZE, :]
 
         if count % BAT_SIZE != 0:
             to_pad = numpats - count
