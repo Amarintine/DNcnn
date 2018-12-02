@@ -4,147 +4,101 @@ from PIL import Image
 import numpy as np
 import glob
 import os
-scales = [1,0.5]  #1,0.9,0.8,0.7
-STRIDE = 16
-PAT_SIZE = 64
-BAT_SIZE = 64
-class Data_loader():
-
-    def __init__(self):
-        pass
-
-    def load_data(self,args):
-
-        print('preparing patches..')
-        files1, files2 = sorted(os.listdir('.//datasets//train/inputs')), sorted(os.listdir('./datasets/train/labels'))
-        data = []
-        for filepath1 in files1:
-            filepath1 = sorted(glob.glob('./datasets/train/inputs/' + filepath1 + '/*.tif'))
-            data.append(self.generate_3D_patches(filepath1))
-        for filepath2 in files2:
-            filepath2 = sorted(glob.glob('./datasets/train/labels/' + filepath2 + '/*.tif'))
-            data.append(self.generate_3D_patches(filepath2))
-
-        # normalization [0,1]
-        self.data1 = data[0].astype(np.float32) / 255.0  # [9856,1,30,40,40]  create——data batch=64
-        self.data2 = data[1].astype(np.float32) / 255.0
-        # self.data3 = data[2].astype(np.float32) / 255.0
-        # self.data4 = data[3].astype(np.float32) / 255.0
-        # self.data5 = data[4].astype(np.float32) / 255.0
-        # self.data6 = data[5].astype(np.float32) / 255.0
-        # self.data7 = data[6].astype(np.float32) / 255.0
-        # self.data8 = data[7].astype(np.float32) / 255.0
-        # self.data9 = data[8].astype(np.float32) / 255.0
-        # self.data10= data[9].astype(np.float32) / 255.0
-
-        print("random load datasets")
-        randnum = np.random.randint(0, 100)
-        np.random.seed(randnum);np.random.shuffle(self.data1)
-        np.random.seed(randnum);np.random.shuffle(self.data2)
-        # np.random.seed(randnum);np.random.shuffle(self.data3)
-        # np.random.seed(randnum);np.random.shuffle(self.data4)
-        # np.random.seed(randnum);np.random.shuffle(self.data5)
-        # np.random.seed(randnum);np.random.shuffle(self.data6)
-        # np.random.seed(randnum);np.random.shuffle(self.data7)
-        # np.random.seed(randnum);np.random.shuffle(self.data8)
-        # np.random.seed(randnum);np.random.shuffle(self.data9)
-        # np.random.seed(randnum);np.random.shuffle(self.data10)
+import cv2
+from torch.utils.data import DataLoader
+from torch.utils import data
+import torchvision.transforms as transforms
 
 
 
-        self.data1 = torch.from_numpy(self.data1)
-        self.data2 = torch.from_numpy(self.data2)
-        # self.data3 = torch.from_numpy(self.data3)
-        # self.data4 = torch.from_numpy(self.data4)
-        # self.data5 = torch.from_numpy(self.data5)
-        # self.data6 = torch.from_numpy(self.data6)
-        # self.data7 = torch.from_numpy(self.data7)
-        # self.data8 = torch.from_numpy(self.data8)
-        # self.data9 = torch.from_numpy(self.data9)
-        # self.data10= torch.from_numpy(self.data10)
+class Data_loader(data.Dataset):
+    def __init__(self, labels_root, inputs_root, transforms=None):
+        '''
+        :param labels_root: confocal #labels_root = './dataset/train/labels/01-40X-0.42UM'
+        :param inputs_root: widefield #inputs_root = './dataset/train/inputs/01'
+        :param transforms:
+        '''
+        self.labels_root = sorted(glob.glob(labels_root+'/*.tif'))
+        self.inputs_root = sorted(glob.glob(inputs_root+'/*.tif'))
+        self.transforms = transforms
+        self.labels_patches, self.inputs_patches = flexible_data_augmentation(self.labels_root, self.inputs_root, 32, 64, 16)
 
-        # self.confocal_data=torch.cat((self.data6, self.data7, self.data8,self.data9, self.data10), 0)
-        # self.widefield_data=torch.cat((self.data1, self.data2, self.data3,self.data4, self.data5), 0)
-        self.confocal_data = self.data2
-        self.widefield_data = self.data1
+        # print(sum(self.labels_patches))
+    def __getitem__(self, index):
+        #1024*1024*16->16*64*64*3*
+        #print('labels_patches.shape; ', self.labels_patches.shape)#(3616, 16, 64, 64, 3)
+        #print('inputs_patches.shape; ', self.inputs_patches.shape)
+        return self.labels_patches[index], self.inputs_patches[index]
 
-        numBatch = int(self.confocal_data.shape[0] / args.batch_size)
-        print(numBatch)
-
-        return numBatch
-
-    def load_test_data(self,args):
-        self.test_data2 = load_3D_images(glob.glob('./datasets/{}/*.tif'.format(args.test_input)))
-        self.test_data1 = load_3D_images(glob.glob('./datasets/{}/*.tif'.format(args.test_labels)))
+    def __len__(self):
+        return self.labels_patches.shape[0]
 
 
-    def set_data(self,batch_id,batch_size):
-
-            # [64,1,30,40,40,]
-        confocal_images = self.confocal_data[batch_id * batch_size:(batch_id + 1) * batch_size, :, :, :, :]
-        widefield_images = self.widefield_data[batch_id * batch_size:(batch_id + 1) * batch_size, :, :, :, :]  #打乱
-        return {'confocal_images': confocal_images, 'widefield_images': widefield_images}
-
-    def set_test_data(self):
-        return {
-            'test_data1': self.test_data1, 'test_data2': self.test_data2
-        }
+def load_test_data(args):
+    test_data2 = load_3D_images(glob.glob('./datasets/{}/*.tif'.format(args.test_input)))
+    test_data1 = load_3D_images(glob.glob('./datasets/{}/*.tif'.format(args.test_labels)))
+    return {
+        'test_data1': test_data1, 'test_data2': test_data2
+    }
 
 
-    def generate_3D_patches(self, filepath):
-        # calculate the number of patches
 
-        img_example = cv2.imread(filepath[0])  # ndarray
-        (h, w, c) = img_example.shape
+
+
+
+
+
+def flexible_data_augmentation(labels_root, inputs_root, BATCH_SIZE=32, PATCH_SIZE=64, STRIDE=16):
+    #parameters
+    h = 1024
+    w = 1024
+    c = 3
+    #scales = [1.0, 0.9, 0.8, 0.7]
+    scales = [1.0]
+    # calculate the number of patches
+    count = 0
+    for s in range(len(scales)):
+        new_h = int(h*scales[s])
+        new_w = int(w*scales[s])
+        for x in range(0,new_h-PATCH_SIZE,STRIDE):
+            for y in range(0,new_w-PATCH_SIZE,STRIDE):
+                count += 1
+    if count % BATCH_SIZE != 0:
+        numpats = (count // BATCH_SIZE + 1) * BATCH_SIZE
+    else:
+        numpats = count
+    print('count = %d,total patches = %d,batch_size = %d,total batches = %d' % (count, numpats, BATCH_SIZE, numpats/BATCH_SIZE))
+
+    #generate patches
+    labels_patches = np.zeros((numpats, 16, PATCH_SIZE, PATCH_SIZE, c))
+    inputs_patches = np.zeros((numpats, 16, PATCH_SIZE, PATCH_SIZE, c))
+    labels_matrixs = [None]*len(scales)
+    inputs_matrixs = [None]*len(scales)
+    for s in range(len(scales)):
+        new_h = int(h * scales[s])
+        new_w = int(w * scales[s])
+        labels_matrixs[s] = np.zeros((16, new_h, new_w, c))
+        inputs_matrixs[s] = np.zeros((16, new_h, new_w, c))
+        for i in range(16):
+            labels_layers = cv2.imread(labels_root[i])
+            inputs_layers = cv2.imread(inputs_root[i])
+            labels_layers_resized = labels_layers[int((h-new_h)/2):int((h-new_h)/2+new_h), int((w-new_w)/2):int((w-new_w)/2+new_w), :]
+            inputs_layers_resized = inputs_layers[int((h-new_h)/2):int((h-new_h)/2+new_h), int((w-new_w)/2):int((w-new_w)/2+new_w), :]
+            labels_matrixs[s][i:i + 1, :, :, :] = labels_layers_resized
+            inputs_matrixs[s][i:i + 1, :, :, :] = inputs_layers_resized
+
+
         count = 0
-        inputs = [None, None]
+        for x in range(0, new_h-PATCH_SIZE, STRIDE):
+            for y in range(0, new_w-PATCH_SIZE, STRIDE):
+                labels_patches[count, :, :, :, :] = labels_matrixs[s][:, x:x + PATCH_SIZE, y:y + PATCH_SIZE, :]
+                inputs_patches[count, :, :, :, :] = inputs_matrixs[s][:, x:x + PATCH_SIZE, y:y + PATCH_SIZE, :]
+                count += 1
+    if count % BATCH_SIZE != 0:
+        to_pad = numpats-count
+        labels_patches[-to_pad:,:,:,:,:] = labels_patches[:to_pad,:,:,:,:]
+        inputs_patches[-to_pad:,:,:,:,:] = inputs_patches[:to_pad,:,:,:,:]
+    inputs_patches = inputs_patches.transpose(0, 4, 1, 2, 3)/255.0
+    labels_patches = labels_patches.transpose(0, 4, 1, 2, 3)/255.0
 
-        for s in range(len(scales)):
-            new_h = int(h * scales[s])
-            new_w = int(w * scales[s])
-            new_c = c
-            new_size = (new_h, new_w, new_c)
-
-
-
-            for x in range(0, new_h - PAT_SIZE, STRIDE):
-                for y in range(0, new_w - PAT_SIZE, STRIDE):
-                    count += 1
-
-        if count % BAT_SIZE != 0:
-            numpats = (count // BAT_SIZE + 1) * BAT_SIZE
-        else:
-            numpats = count
-        print('count = %d,total patches = %d,batch_size = %d,total batches = %d' % (count,numpats, BAT_SIZE, numpats / BAT_SIZE))
-        count = 0
-        labels_patches = np.zeros((numpats, 16, PAT_SIZE, PAT_SIZE, 3))
-        inputs_patches = np.zeros((numpats, 16, PAT_SIZE, PAT_SIZE, 3))
-        for s in range(len(scales)):
-            new_h = int(h * scales[s])
-            new_w = int(w * scales[s])
-            new_c = c
-            new_size = (new_h, new_w, new_c)
-            # print(new_size)
-            # one folder's images->3D matrixs
-
-            inputs[s] = np.zeros((16, int(h * scales[s]), int(w * scales[s]), c))  # 16*1024*1024*3
-            for i in range(16):
-                inputs_layers =  cv2.imread(filepath[i])
-                inputs_layers_resized =  inputs_layers[0:new_h,0:new_w,0:new_c]
-                inputs[s][i:i + 1, :, :, :] = inputs_layers_resized
-            # generate_patches
-            for i in range(0, new_h - PAT_SIZE, STRIDE):
-                for j in range(0, new_w - PAT_SIZE, STRIDE):
-                    
-                    inputs_patches[count：count + 1, :, :, :, :] = inputs[s][:,i:i + PAT_SIZE,j:j + PAT_SIZE, :]
-                    count += 1
-
-        if count % BAT_SIZE != 0:
-            to_pad = numpats - count
-            inputs_patches[-int(to_pad):, :, :, :, :] = inputs_patches[:int(to_pad),:, :, :, :]
-
-        # np.transpose(inputs_patches, (0, 4, 1, 2, 3))
-        # inputs_patches.transpose( (0, 4, 1, 2, 3) )
-        inputs_patches = inputs_patches.transpose(0, 4, 1, 2, 3)
-
-        return inputs_patches
+    return labels_patches, inputs_patches

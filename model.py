@@ -4,6 +4,7 @@ from network import Dncnn,UnetGenerator_3d
 from utils import set_requires_grad
 import numpy as np
 import cv2
+from torch.autograd import Variable
 import os
 from torch.autograd import Variable
 torch.backends.cudnn.benchmark=True
@@ -14,29 +15,34 @@ class denoiser(object):
         self.batch_size=batch_size
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         #self.net = UnetGenerator_3d().to(self.device)
-        self.net=UnetGenerator_3d(in_dim = 3, out_dim = 3, num_filter = 16).to(self.device)
+        self.net=UnetGenerator_3d(in_dim = 3, out_dim = 3, num_filter = 32).to(self.device)
         self.loss = torch.nn.MSELoss(size_average=False)
         self.adjust_learning_rate(args)
         self.optimizer = torch.optim.Adam(self.net.parameters(),lr=args.lr, betas=(args.beta1, 0.999))
 
     def adjust_learning_rate(self,args):
         lr = args.lr * np.ones([args.epoch])
-        lr[3:] = lr[0] / 10.0
+        lr[5:] = lr[0] / 10.0
 
-    def set_input(self,input):
-        self.widefield_images_all =Variable(input['widefield_images']).to(self.device)
-        self.confocal_images_all =Variable(input['confocal_images']).to(self.device)
-
+    def set_input(self,data):
+        self.widefield_images_all = Variable(data[1]).to(self.device).float()
+        self.confocal_images_all = Variable(data[0]).to(self.device).float()
+        return self.widefield_images_all,self.confocal_images_all
 
     def set_test_input(self,input):
         self.data_ = input['test_data1']
         self.test_data_labels = self.data_
         self.test_data_input = input['test_data2']
 
+
     def forward(self):
-        self.desired = self.net(self.widefield_images_all)
+        self.desired = self.net(self.widefield_images_all)   # batch,3,16,64,64
+
+    def out(self):
+        return self.desired
 
     def loss_calculate(self):
+        # self.loss_all = loss_function(self.desired, self.confocal_images_all)
         self.loss_all = self.loss(self.desired, self.confocal_images_all)
 
     def get_loss(self):
@@ -47,6 +53,7 @@ class denoiser(object):
         set_requires_grad(self.net, True)
         self.optimizer.zero_grad()
         self.loss_calculate()
+
         self.loss_all.backward()
         self.optimizer.step()
 
@@ -96,19 +103,16 @@ class denoiser(object):
     def test(self,arg):
         print("start testing....")
 
-        self.test_data_input = self.test_data_input.astype(np.float32) / 255.0   #[1,3,16,1024,1024]
-
-
+        self.test_data_input = self.test_data_input.astype(np.float32)/255.0   #[1,3,16,1024,1024]
         widefield_image = Variable(torch.from_numpy(self.test_data_input)).to(self.device)  # 1,3,16,1024,1024
-        self.load_networks(arg,'20')
+        self.load_networks(arg,'latest')
         with torch.no_grad():
             output_confocal_image = self.net(widefield_image)
-            # output = output.permute(0, 2, 3, 4, 1)
-            # output_confocal_image = widefield_image - output  # that is desired
-
             widefield_image = widefield_image.cpu().numpy()
             output_confocal_image = output_confocal_image.cpu().numpy()
             groundtruth = self.test_data_labels.astype('uint8')
+            # widefieldimage =widefield_image.astype('uint8')
+            # outputimage =output_confocal_image.astype('uint8')
             widefieldimage = np.clip(255 * widefield_image, 0, 255).astype('uint8')
             outputimage = np.clip(255 * output_confocal_image, 0, 255).astype('uint8')
 

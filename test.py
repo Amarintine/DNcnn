@@ -2,7 +2,7 @@
 from options import Options
 from model import denoiser
 
-from data_loader import Data_loader
+from data_loader import load_test_data
 import time
 
 if __name__ == '__main__':
@@ -11,9 +11,7 @@ if __name__ == '__main__':
     model = denoiser(args)
     if args.eval:
         model.eval()
-    dataset=Data_loader()
-    dataset.load_test_data(args)
-    data = dataset.set_test_data()
+    data = load_test_data(args)
     model.set_test_input(data)
     model.test(args)
 
