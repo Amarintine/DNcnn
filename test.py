@@ -11,7 +11,7 @@ if __name__ == '__main__':
     model = denoiser(args)
     if args.eval:
         model.eval()
-    data = load_test_data(args)
-    model.set_test_input(data)
-    model.test(args)
+    # data = load_test_data(args)
+    # model.set_test_input(data)
+    model.test_new(args,64)
 
